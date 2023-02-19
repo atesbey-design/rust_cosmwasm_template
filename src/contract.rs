@@ -1,39 +1,42 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{State, STATE};
 
-// Burada versiyonlarimizi yaratiyor ki ileride migrate edersek kontrati bu bilgileri kullanabilelim
-const CONTRACT_NAME: &str = "crates.io:template";
+//CONTRACT_NAME ve CONTRACT_VERSION sabitleri, sözleşmenin kimliğini belirtir ve sözleşme güncelleştirmeleri için gereklidir.
+const CONTRACT_NAME: &str = "crates.io:counter_cw";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+
+
+
+//CosmWasm akıllı sözleşmesinin giriş noktası (entry point) işlevini tanımlar. 
+//Bu işlev, kullanıcıların sözleşme işlevlerine erişebilecekleri yerdir. 
+//Sözleşmenin durumunu ve işlevlerini tanımlayan diğer dosyalara da bağımlıdır.
 #[cfg_attr(not(feature = "library"), entry_point)]
+
+//Contract'in deployment sürecinde, smart contract sisteme yüklendiği ve ilk kez kullanıldığı anda çağrılacak olan bir fonksiyondur. 
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-
-    // Once state i yaratiyoruz
     let state = State {
+        count: msg.count,
+        owner: info.sender.clone(),
     };
-
-    // Kontrat versiyonumuzu kaydediyoruz.
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    // Yarattigimiz state i blockchain e kalici olarak kaydediyoruz.
     STATE.save(deps.storage, &state)?;
 
-    // Fonksiyonumuz donus yapiyor burada, return degerleri olarak methodun ne oldugunu ve instantiate eden kisinin kim oldugunu donduruyoruz.
-    // Bu degerler ozellikle front end kisminda onemli olacak.
     Ok(Response::new()
         .add_attribute("method", "instantiate")
-        .add_attribute("owner", info.sender))
+        .add_attribute("owner", info.sender)
+        .add_attribute("count", msg.count.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -43,48 +46,39 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    // Burada match icinde Execute mesajlari ve onlarin dogru fnksiyonlara yonlendirilmeleri olacak.
     match msg {
+        ExecuteMsg::Increment {} => try_increment(deps),
+        ExecuteMsg::Reset { count } => try_reset(deps, info, count),
     }
 }
 
-pub mod execute {
-    use super::*;
-    // Burada match icinde Execute mesajlarinin karsilik gelecegi fonksiyonlar olacak.
+pub fn try_increment(deps: DepsMut) -> Result<Response, ContractError> {
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.count += 1;
+        Ok(state)
+    })?;
+
+    Ok(Response::new().add_attribute("method", "try_increment"))
+}
+pub fn try_reset(deps: DepsMut, info: MessageInfo, count: i32) -> Result<Response, ContractError> {
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        if info.sender != state.owner {
+            return Err(ContractError::Unauthorized {});
+        }
+        state.count = count;
+        Ok(state)
+    })?;
+    Ok(Response::new().add_attribute("method", "reset"))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    // Burada match icinde Query mesajlari ve onlarin dogru fnksiyonlara yonlendirilmeleri olacak.
-    Ok(Binary::default())
-}
-
-pub mod query {
-    use super::*;
-    // Burada match icinde Query mesajlarinin karsilik gelecegi fonksiyonlar olacak.
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins};
-
-    #[test]
-    fn init_test() {
-        // Asagidaki kod sahte deps yaratiyor bizim icin
-        let mut deps = mock_dependencies();
-
-        // Init mesajimiz
-        let msg = InstantiateMsg {  };
-
-        // Sahte deps lerimizle kullanilabilmesi icin info yaratiyoruz.
-        // Normalde bu info, kullanan adresten geliyor ama su anda sahte bir ortamda oldugumuzdan ve kendi kendimize test ettigimizden, info yu kendimiz yaratiyoruz.
-        let info = mock_info("creator", &coins(1000, "earth"));
-
-        // Init fonksiyonunu cagirip, return degerini res te tutuyoruz.
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        // Donen degerin uzunlugu var mi diye bakiyoruz calisip calismadigini anlamak icin.
-        assert_eq!(0, res.messages.len());
+    match msg {
+        QueryMsg::GetCount {} => to_binary(&query_count(deps)?),
     }
+}
+
+fn query_count(deps: Deps) -> StdResult<CountResponse> {
+    let state = STATE.load(deps.storage)?;
+    Ok(CountResponse { count: state.count })
 }

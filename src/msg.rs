@@ -1,17 +1,42 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
 
-#[cw_serde]
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+
+//InstantiateMsg: Bu tip, smart contract'in ilk kez başlatıldığında alacağı parametreleri tanımlar. 
+//Bu örnekte, InstantiateMsg yalnızca count adlı bir tam sayı içermektedir.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    // Buradaki mesajiniz ile instantiate edilecek kontrat.
+    pub count: i32,
+ 
 }
 
-#[cw_serde]
+
+
+//ExecuteMsg: Bu tip, smart contract'ın yürütülebilir mesajlarını tanımlar. 
+//Bu örnekte, ExecuteMsg, Increment ve Reset adlı iki alt mesaj tiplerini içermektedir. 
+//Increment mesajı, mevcut sayacın değerini arttırmak için kullanılırken, Reset mesajı, sayacın belirtilen bir değere sıfırlanması için kullanılır.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    // Burada blockchain e yazmak icin kullanacaginiz mesajlar olacak.
+    Increment {},
+    Reset { count: i32 },
 }
 
-#[cw_serde]
-#[derive(QueryResponses)]
+
+
+//QueryMsg: Bu tip, smart contract'ın sorgulanabilir mesajlarını tanımlar. Bu örnekte, yalnızca GetCount adlı bir mesaj tipi bulunmaktadır. 
+//Bu mesaj, smart contract'ın mevcut sayac değerini JSON olarak kodlanmış bir sayı olarak döndürür.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    // Burada blockchainden data almak ciin kullanacaginiz fonksiyonlar olacak.
+    GetCount {},
+}
+
+
+
+//CountResponse<Custom>: Bu tip, smart contract'ın mevcut sayac değerini döndürmesi için kullanılır.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CountResponse {
+    pub count: i32,
 }
